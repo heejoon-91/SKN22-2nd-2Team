@@ -84,3 +84,6 @@ reports/
 # ---- Streamlit ----
 .streamlit/secrets.toml
 .streamlit/.cache/
+
+
+catboost_info/
