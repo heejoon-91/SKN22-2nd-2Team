@@ -217,8 +217,15 @@ def main():
         
         page = st.radio(
             "📍 Navigation",
-            ["🏠 Home", "📊 데이터 탐색 (EDA)", "🤖 ML 모델 결과", 
-             "🧠 DL 모델 결과", "⚖️ 모델 비교", "🎯 추론 (Inference)"],
+            [
+                "🏠 Home",
+                "📊 데이터 탐색 (EDA)",
+                "🤖 ML 모델 결과",
+                "🧠 DL 모델 결과",
+                "⚖️ 모델 비교",
+                "📌 BM 전략 / 세그먼트",
+                "🎯 추론 (Inference)",
+            ],
             label_visibility="collapsed"
         )
         
@@ -241,6 +248,8 @@ def main():
         show_dl_results()
     elif page == "⚖️ 모델 비교":
         show_model_comparison()
+    elif page == "📌 BM 전략 / 세그먼트":
+        show_bm_strategy()
     elif page == "🎯 추론 (Inference)":
         show_inference()
 
@@ -311,8 +320,8 @@ def show_home():
         ("✅ 데이터 전처리 및 Feature Engineering", 100),
         ("✅ ML 모델 학습 (Logistic Regression, LightGBM)", 100),
         ("🔄 DL 모델 학습 (MLP)", 0),
-        ("🔄 최적 모델 선정 및 저장", 0),
-        ("🔄 Inference 파이프라인 구축", 0),
+        ("✅ 최적 모델 선정 및 저장 (LightGBM)", 100),
+        ("✅ BM 전략 및 Inference UI 구축", 100),
     ]
     
     for task, progress in progress_data:
@@ -629,6 +638,71 @@ def show_ml_results():
             
             st.info(f"🏆 Best Iteration: {results['LightGBM']['best_iteration']}")
 
+    # --- CatBoost (Recall 최적화) 별도 섹션 ---
+    st.markdown("---")
+    st.markdown("### 🟣 CatBoost (Recall 최적화) 결과")
+    
+    try:
+        with open("models/recall_selected_results.json", "r") as f:
+            cb = json.load(f)
+    except FileNotFoundError:
+        st.info("`recall_selected_results.json` 파일을 찾을 수 없어 CatBoost 결과를 표시할 수 없습니다.")
+        return
+    
+    cb_test = cb["test_metrics_optimal"]
+    cb_valid = cb["valid_metrics_optimal"]
+    thr = cb["optimal_threshold"]
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### Test Set (threshold 최적화)")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("ROC-AUC", f"{cb_test['roc_auc']:.4f}")
+        m2.metric("PR-AUC", f"{cb_test['pr_auc']:.4f}")
+        m3.metric("Recall", f"{cb_test['recall']:.4f}")
+        
+        m4, m5, m6 = st.columns(3)
+        m4.metric("Precision", f"{cb_test['precision']:.4f}")
+        m5.metric("F1-Score", f"{cb_test['f1']:.4f}")
+        m6.metric("Specificity", f"{cb_test['specificity']:.4f}")
+        
+        st.markdown(f"- 사용 threshold: **{thr:.3f}** (Validation Recall 기준 최적화)")
+    
+    with col2:
+        st.markdown("#### Validation / Test Confusion Matrix (요약)")
+        st.markdown(
+            f"- Valid: TN={cb_valid['true_negative']:,}, FP={cb_valid['false_positive']:,}, "
+            f"FN={cb_valid['false_negative']:,}, TP={cb_valid['true_positive']:,}"
+        )
+        st.markdown(
+            f"- Test: TN={cb_test['true_negative']:,}, FP={cb_test['false_positive']:,}, "
+            f"FN={cb_test['false_negative']:,}, TP={cb_test['true_positive']:,}"
+        )
+    
+    # Feature Importance (Top 10)
+    fi_cb = cb["feature_importance"][:10]
+    fi_cb_df = pd.DataFrame(fi_cb)
+    
+    st.markdown("#### CatBoost Feature Importance (Top 10)")
+    fig_cb = px.bar(
+        fi_cb_df.sort_values("importance", ascending=True),
+        x="importance",
+        y="feature",
+        orientation="h",
+        color="importance",
+        color_continuous_scale="Purples",
+    )
+    fig_cb.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#1e293b"),
+        yaxis=dict(autorange="reversed", gridcolor="rgba(100, 116, 139, 0.2)"),
+        xaxis=dict(gridcolor="rgba(100, 116, 139, 0.2)"),
+        showlegend=False,
+        coloraxis_showscale=False,
+    )
+    st.plotly_chart(fig_cb, use_container_width=True)
+
 
 def show_dl_results():
     """DL 모델 결과 페이지 (Placeholder)"""
@@ -703,37 +777,58 @@ def show_model_comparison():
         st.error("학습 결과 파일을 찾을 수 없습니다.")
         return
     
+    # CatBoost (Recall 최적화) 결과 로드 (있으면 비교에 포함)
+    cb = None
+    try:
+        with open("models/recall_selected_results.json", "r") as f:
+            cb = json.load(f)
+    except FileNotFoundError:
+        cb = None
+    
     st.markdown("### 📊 전체 모델 성능 비교 (Test Set)")
     
     # 비교 테이블
+    model_names = ["Logistic Regression", "LightGBM"]
+    roc_list = [
+        f"{results['Logistic Regression']['test_metrics']['roc_auc']:.4f}",
+        f"{results['LightGBM']['test_metrics']['roc_auc']:.4f}",
+    ]
+    pr_list = [
+        f"{results['Logistic Regression']['test_metrics']['pr_auc']:.4f}",
+        f"{results['LightGBM']['test_metrics']['pr_auc']:.4f}",
+    ]
+    recall_list = [
+        f"{results['Logistic Regression']['test_metrics']['recall']:.4f}",
+        f"{results['LightGBM']['test_metrics']['recall']:.4f}",
+    ]
+    prec_list = [
+        f"{results['Logistic Regression']['test_metrics']['precision']:.4f}",
+        f"{results['LightGBM']['test_metrics']['precision']:.4f}",
+    ]
+    f1_list = [
+        f"{results['Logistic Regression']['test_metrics']['f1']:.4f}",
+        f"{results['LightGBM']['test_metrics']['f1']:.4f}",
+    ]
+    status_list = ["✅ 완료", "✅ 완료"]
+    
+    if cb is not None:
+        cb_test = cb["test_metrics_optimal"]
+        model_names.append("CatBoost (Recall Optimized)")
+        roc_list.append(f"{cb_test['roc_auc']:.4f}")
+        pr_list.append(f"{cb_test['pr_auc']:.4f}")
+        recall_list.append(f"{cb_test['recall']:.4f}")
+        prec_list.append(f"{cb_test['precision']:.4f}")
+        f1_list.append(f"{cb_test['f1']:.4f}")
+        status_list.append("✅ 완료")
+    
     comparison_data = {
-        "모델": ["Logistic Regression", "LightGBM", "MLP (예정)"],
-        "ROC-AUC": [
-            f"{results['Logistic Regression']['test_metrics']['roc_auc']:.4f}",
-            f"{results['LightGBM']['test_metrics']['roc_auc']:.4f}",
-            "—"
-        ],
-        "PR-AUC": [
-            f"{results['Logistic Regression']['test_metrics']['pr_auc']:.4f}",
-            f"{results['LightGBM']['test_metrics']['pr_auc']:.4f}",
-            "—"
-        ],
-        "Recall": [
-            f"{results['Logistic Regression']['test_metrics']['recall']:.4f}",
-            f"{results['LightGBM']['test_metrics']['recall']:.4f}",
-            "—"
-        ],
-        "Precision": [
-            f"{results['Logistic Regression']['test_metrics']['precision']:.4f}",
-            f"{results['LightGBM']['test_metrics']['precision']:.4f}",
-            "—"
-        ],
-        "F1-Score": [
-            f"{results['Logistic Regression']['test_metrics']['f1']:.4f}",
-            f"{results['LightGBM']['test_metrics']['f1']:.4f}",
-            "—"
-        ],
-        "상태": ["✅ 완료", "✅ 완료", "🔄 예정"]
+        "모델": model_names,
+        "ROC-AUC": roc_list,
+        "PR-AUC": pr_list,
+        "Recall": recall_list,
+        "Precision": prec_list,
+        "F1-Score": f1_list,
+        "상태": status_list,
     }
     
     st.dataframe(pd.DataFrame(comparison_data), use_container_width=True, hide_index=True)
@@ -747,6 +842,7 @@ def show_model_comparison():
     
     lr_test = results["Logistic Regression"]["test_metrics"]
     lgb_test = results["LightGBM"]["test_metrics"]
+    cb_test = cb["test_metrics_optimal"] if cb is not None else None
     
     fig = go.Figure()
     
@@ -765,6 +861,15 @@ def show_model_comparison():
         name='LightGBM',
         line_color='#8b5cf6'
     ))
+    
+    if cb_test is not None:
+        fig.add_trace(go.Scatterpolar(
+            r=[cb_test['roc_auc'], cb_test['pr_auc'], cb_test['recall'], cb_test['precision'], cb_test['f1']],
+            theta=categories,
+            fill='toself',
+            name='CatBoost (Recall Optimized)',
+            line_color='#a855f7'
+        ))
     
     fig.update_layout(
         polar=dict(
@@ -794,11 +899,11 @@ def show_model_comparison():
     with col1:
         st.markdown("""
         <div class="info-card" style="border-color: #86efac; background: #f0fdf4;">
-            <h3 style="color: #166534;">🥇 추천 모델: LightGBM</h3>
+            <h3 style="color: #166534;">🥇 추천 모델 (Baseline): LightGBM</h3>
             <h4 style="color: #1e293b;">선정 사유</h4>
             <ul style="color: #334155;">
-                <li><strong>ROC-AUC 0.9887</strong>: 최고 분류 성능</li>
-                <li><strong>PR-AUC 0.9277</strong>: 불균형 데이터에서도 우수</li>
+                <li><strong>ROC-AUC 0.9887</strong>: Logistic Regression 대비 우수한 분류 성능</li>
+                <li><strong>PR-AUC 0.9277</strong>: 불균형 데이터에서도 높은 정밀도-재현율 균형</li>
                 <li><strong>Recall 0.9413</strong>: 이탈자의 94% 탐지</li>
             </ul>
             <h4 style="color: #1e293b;">주요 이탈 예측 피처</h4>
@@ -810,72 +915,131 @@ def show_model_comparison():
         </div>
         """, unsafe_allow_html=True)
         
+        if cb is not None:
+            st.markdown("""
+            <div class="info-card" style="border-color: #c4b5fd; background: #f5f3ff; margin-top: 1rem;">
+                <h3 style="color: #4c1d95;">⭐ Recall 최적화 관점: CatBoost</h3>
+                <p style="color: #4b5563;">
+                    <strong>CatBoost (Recall Optimized)</strong>는 threshold를 조정하여<br/>
+                    이탈 고객 Recall을 더욱 높인 모델입니다 (약 95% 수준).
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        
     with col2:
-        st.markdown("#### 성능 요약")
+        st.markdown("#### LightGBM 성능 요약")
         st.metric("ROC-AUC", "0.9887", "Best")
         st.metric("PR-AUC", "0.9277", "Best")
-        st.metric("Recall", "0.9413", "Best")
+        st.metric("Recall", "0.9413", "High")
+
+
+def show_bm_strategy():
+    """BM 전략 및 세그먼트 정의 페이지"""
+    st.markdown("## 📌 BM 전략 / 세그먼트")
+    
+    st.markdown("""
+    ### 1. 비즈니스 목표 (BM Goal)
+    - **BM-1**: 다음 달 이탈 가능성이 높은 고객을 사전에 식별하여 **Retention 캠페인** 수행
+    - **BM-2**: **LTV(총 결제액)가 높은 고객** 중 이탈 위험이 큰 그룹을 우선 타겟팅
+    - **BM-3**: 자동갱신 해제 / 취소 이력이 있는 고객을 **집중 모니터링**하여 즉각 대응
+    """)
+    
+    st.markdown("---")
+    st.markdown("### 2. 핵심 지표 / Feature (LightGBM 기준 Top Features)")
+    
+    st.markdown("""
+    - `days_to_expire` : 만료까지 남은 일수 (만료 임박 고객 = 높은 이탈 위험)
+    - `auto_renew_rate` : 자동 갱신 비율 (OFF/낮음 = 높은 이탈 위험)
+    - `total_payment` : 총 결제액 (높을수록 High Value 고객)
+    - `cancel_count` : 취소 횟수 (불만/이탈 시도 신호)
+    - `transaction_count`, `avg_discount_rate` 등 결제 행동 피처
+    """)
+    
+    st.markdown("---")
+    st.markdown("### 3. 세그먼트 정의 (Segments)")
+    
+    st.markdown("""
+    **S1. High Value & High Risk (우선 타겟)**
+    - 조건 예시:
+      - 예측 이탈 확률 (Risk Score) ≥ 0.7
+      - `total_payment` 상위 30%
+    - 액션:
+      - 고가 플랜 재구독 할인, 장기 구독 프로모션, VIP 전용 혜택 제안
+    
+    **S2. Auto-renew OFF & High/Medium Risk**
+    - 조건 예시:
+      - 자동 갱신 비율 `auto_renew_rate` 낮음 또는 최근 거래 `is_auto_renew_last = 0`
+      - Risk Score ≥ 0.5
+    - 액션:
+      - 만료 전 리마인드, 자동 갱신 재설정 유도, 간편 결제/묶음 플랜 제안
+    
+    **S3. Usage 감소형 (Usage Drop형 위험 고객)**
+    - 조건 예시:
+      - 최근 7일 사용량이 30일 대비 감소: `secs_trend_w7_w30 < 0`, `days_trend_w7_w30 < 0`
+      - 스킵율 증가: `skip_trend_w7_w30 > 0`
+    - 액션:
+      - 취향 기반 플레이리스트 추천, 신규 콘텐츠/테마 제안, 온보딩/리마인드 푸시
+    """)
+    
+    st.markdown("---")
+    st.markdown("### 4. 액션 매핑 요약")
+    
+    st.markdown("""
+    | 세그먼트 | BM 관점 설명 | 권장 액션 |
+    |---------|-------------|-----------|
+    | S1 High Value & High Risk | 매출 기여도 높고, 이탈 시 손실이 큰 고객 | LTV 기반 VIP 케어, 고가/장기 플랜 인센티브 |
+    | S2 Auto-renew OFF & Risk | 구독 의지가 약해졌거나 해제한 고객 | 만료 알림, 재구독/자동갱신 유도 캠페인 |
+    | S3 Usage 감소형 | 최근 이용량이 줄어든 고객 | 콘텐츠 큐레이션, 취향 재탐색, 리텐션용 푸시/메일 |
+    """)
+    
+    st.info(
+        "실제 추론 페이지(🎯 추론 탭)에서는 입력된 Feature를 바탕으로 "
+        "위 BM 세그먼트와 위험등급에 따라 간단한 추천 액션을 함께 제공합니다."
+    )
 
 
 def show_inference():
-    """추론 페이지 (Placeholder)"""
+    """BM 규칙 기반 이탈 위험 추론 페이지"""
     import pandas as pd
     import numpy as np
     
     st.markdown("## 🎯 추론 (Inference)")
     
     st.markdown("""
-    <div class="placeholder-card">
-        <h3>🚧 개발 예정</h3>
-        <p style="color: #78716c; font-size: 1.1rem;">
-            Inference 파이프라인이 아직 구축되지 않았습니다.
-        </p>
-        <hr style="border-color: rgba(217, 119, 6, 0.3); margin: 1.5rem 0;">
-        <h4 style="color: #1e293b;">📋 계획된 내용</h4>
-        <ul style="text-align: left; color: #334155;">
-            <li>평가 지표 기준 최적 모델 선정</li>
-            <li>학습된 모델 저장</li>
-            <li>전처리부터 추론까지 일관된 inference 코드 작성</li>
-        </ul>
-        <h4 style="color: #1e293b; margin-top: 1.5rem;">📁 예상 Deliverable</h4>
-        <ul style="text-align: left; color: #78716c;">
-            <li><code>/03_trained_model/model_file</code></li>
-            <li><code>/03_trained_model/inference.py</code></li>
-            <li><code>/03_trained_model/model_metadata.md</code></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # 데모 추론 UI (임시)
-    st.markdown("### 🧪 추론 데모 (임시)")
-    st.info("⚠️ 실제 모델이 연결되면 정확한 예측이 가능합니다. 현재는 UI 미리보기입니다.")
+    ### 🔍 BM 관점 이탈 위험 평가
+    아래 주요 Feature 입력값을 기반으로, **BM 규칙 기반 Risk Score**를 계산하고
+    위험 등급 및 추천 액션을 제안합니다.
+    """)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📥 사용자 정보 입력")
+        st.markdown("#### 📥 사용자 정보 입력 (요약 Feature)")
         
-        days_to_expire = st.slider("만료까지 남은 일수", 0, 365, 30)
-        auto_renew_rate = st.slider("자동 갱신 비율", 0.0, 1.0, 0.8)
-        total_payment = st.number_input("총 결제액", min_value=0, value=1500)
-        cancel_count = st.number_input("취소 횟수", min_value=0, value=0)
+        days_to_expire = st.slider("만료까지 남은 일수 (days_to_expire)", 0, 365, 30)
+        auto_renew_rate = st.slider("자동 갱신 비율 (auto_renew_rate)", 0.0, 1.0, 0.8)
+        total_payment = st.number_input("총 결제액 (total_payment)", min_value=0, value=1500)
+        cancel_count = st.number_input("취소 횟수 (cancel_count)", min_value=0, value=0)
         
         predict_btn = st.button("🔮 이탈 위험 예측", use_container_width=True)
     
     with col2:
-        st.markdown("#### 📊 예측 결과")
+        st.markdown("#### 📊 이탈 위험 평가 결과")
         
         if predict_btn:
-            # 임시 규칙 기반 점수 (실제 모델 연결 전)
-            risk_score = min(1.0, max(0.0, 
-                0.3 * (1 - days_to_expire / 365) +
-                0.3 * (1 - auto_renew_rate) +
-                0.2 * (cancel_count / 5) +
-                0.2 * (1 - min(total_payment, 5000) / 5000)
-            ))
+            # BM 규칙 기반 Risk Score 계산
+            risk_score = min(
+                1.0,
+                max(
+                    0.0,
+                    0.3 * (1 - days_to_expire / 365)
+                    + 0.3 * (1 - auto_renew_rate)
+                    + 0.2 * (cancel_count / 5)
+                    + 0.2 * (1 - min(total_payment, 5000) / 5000),
+                ),
+            )
             
+            # 위험 등급 매핑
             if risk_score < 0.3:
                 risk_level = "저위험"
                 risk_color = "#22c55e"
@@ -889,7 +1053,8 @@ def show_inference():
                 risk_color = "#ef4444"
                 risk_emoji = "🔴"
             
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="info-card" style="text-align: center; border-color: {risk_color};">
                 <h2 style="font-size: 3rem; margin: 0;">{risk_emoji}</h2>
                 <h3 style="color: {risk_color}; margin: 0.5rem 0;">{risk_level}</h3>
@@ -897,12 +1062,48 @@ def show_inference():
                     {risk_score:.1%}
                 </p>
                 <p style="color: #64748b; font-size: 0.9rem;">
-                    이탈 확률 (데모)
+                    BM 기반 이탈 위험 점수 (규칙 기반)
                 </p>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
             
-            st.warning("⚠️ 이 결과는 임시 규칙 기반이며, 실제 모델 연결 후 정확도가 향상됩니다.")
+            # 세그먼트 및 추천 액션 결정
+            segments = []
+            actions = []
+            
+            # S1: High Value & High Risk
+            if risk_score >= 0.7 and total_payment >= 1500:
+                segments.append("S1 High Value & High Risk")
+                actions.append(
+                    "- LTV가 높은 고위험 고객입니다. VIP 전용 혜택, 장기 구독 할인, 재구독 인센티브 제공을 고려하세요."
+                )
+            
+            # S2: Auto-renew OFF & Risk
+            if risk_score >= 0.5 and auto_renew_rate <= 0.5:
+                segments.append("S2 Auto-renew OFF & Risk")
+                actions.append(
+                    "- 자동 갱신 비율이 낮은 위험 고객입니다. 만료 전 리마인드 및 자동 갱신 재설정 유도 캠페인이 필요합니다."
+                )
+            
+            # S3: Usage Drop형은 여기서는 측정 불가이므로 설명만 추가
+            if not segments:
+                segments.append("General Risk")
+                actions.append(
+                    "- 핵심 위험 신호는 있으나 특정 BM 세그먼트에 속하지 않습니다. "
+                    "최근 사용량/스킵 패턴을 추가로 확인하여 Usage 감소형 여부를 판단하는 것이 좋습니다."
+                )
+            
+            st.markdown("#### 📌 BM 세그먼트 판정")
+            st.markdown(
+                "<br>".join(f"- **{seg}**" for seg in segments),
+                unsafe_allow_html=True,
+            )
+            
+            st.markdown("#### 💡 추천 액션 (BM 관점)")
+            for act in actions:
+                st.markdown(act)
         else:
             st.markdown("""
             <div class="info-card" style="text-align: center;">
