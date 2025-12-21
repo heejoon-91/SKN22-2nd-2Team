@@ -305,11 +305,14 @@ is_auto_renew_last
 
 ---
 
-## 최종 요약
+## 최종 요약 및 모델 선정 결과
 
-본 Feature Ablation 실험은  
-**“모델이 무엇을 보고 예측하는가”**를 성능 붕괴 실험을 통해 검증하는 과정이다.
+본 실험(Feature Ablation)의 결과는 `model_selection_checklist.md`에 상세히 기록되었으며, 핵심 결론은 다음과 같다.
 
-Feature 제거에도 성능이 점진적으로 감소한다면,  
-본 모델은 특정 컬럼 의존이 아닌 사용자 행동 패턴 기반으로  
-일반화된 churn 예측을 수행한다고 판단할 수 있다.
+1.  **Robustness 검증:**
+    *   **CatBoost**와 **MLP**는 핵심 Feature(결제 이력 등) 제거 시에도 성능이 완만하게 감소하며(Gradient Drop), 특정 정보에 과도하게 의존하지 않는 안정적인 학습 패턴을 입증했다.
+    *   반면 **XGBoost**와 **RandomForest**는 정보 부재 시 성능이 급락하여(Cliff Drop) 운영 안전성 기준을 충족하지 못했다.
+
+2.  **최종 결론:**
+    *   실험 결과에 따라 **CatBoost**를 Primary Model로, **MLP**를 Secondary Candidate로 최종 선정한다.
+    *   이는 단순히 최고 성능(Accuracy)이 아니라, 데이터 누락이나 환경 변화에도 견딜 수 있는 **Robustness**를 최우선 기준으로 삼은 결과이다.

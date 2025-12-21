@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple
 # ============================================================
 # 설정
 # ============================================================
-DATA_DIR = Path(__file__).parent.parent / 'data'
+DATA_DIR = Path(__file__).resolve().parents[2] / 'data'
 T = pd.Timestamp('2017-04-01')  # 예측 시점
 
 # 멀티 윈도우 정의
