@@ -81,7 +81,7 @@ if st.button("🧪 신규 샘플 100개 생성"):
         base_df,
         cat_cols=cat_cols,
         num_cols=num_cols,
-        n=100
+        n=10000
     )
 
 
@@ -129,6 +129,22 @@ if "synthetic_df" in st.session_state:
     # -----------------------
     st.subheader("⑥ 이탈 확률 분포")
 
-    st.bar_chart(
-        synthetic_df["churn_probability"].value_counts(bins=10).sort_index()
+    dist = (
+        synthetic_df["churn_probability"]
+        .value_counts(bins=10)
+        .sort_index()
+        .reset_index()
     )
+
+    dist.columns = ["prob_bin", "count"]
+    dist["prob_bin"] = dist["prob_bin"].astype(str)
+
+    st.bar_chart(
+        dist.set_index("prob_bin")
+    )
+
+    # 예측 이후
+    synthetic_df["churn_probability"] = preds
+
+    # 다른 페이지에서 쓰기 위한 저장
+    st.session_state["synthetic_pred_df"] = synthetic_df.copy()
