@@ -10,4 +10,5 @@ pyarrow
 scikit-learn==1.8.0
 scipy
 seaborn==0.13.2
+shap
 streamlit==1.52.2
