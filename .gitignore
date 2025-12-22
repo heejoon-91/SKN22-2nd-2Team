@@ -74,10 +74,10 @@ outputs/
 runs/
 logs/
 # reports/
-*.png
-*.jpg
-*.jpeg
-*.gif
+# *.png
+# *.jpg
+# *.jpeg
+# *.gif
 *.pdf
 *.html
 
