@@ -127,7 +127,7 @@
 > **💡 왜 두 개의 모델을 쓰나요? (Two-Track Strategy)**
 > 결제 만료가 임박하거나 해지한 사용자(Active Churn)뿐만 아니라, **아직 돈은 내고 있지만 마음은 떠난 사용자(Silent Churn)를 놓치지 않기 위함**입니다. 이 두 모델의 시너지를 통해 빈틈없는 이탈 관리가 가능합니다.
 
-### 5. 대시보드 구축 (Interactive Dashboard)
+### 6. 대시보드 구축 (Interactive Dashboard)
 - **Streamlit**을 활용하여 예측 결과와 주요 지표를 시각화
 - **주요 기능**:
     - Model Guideline
