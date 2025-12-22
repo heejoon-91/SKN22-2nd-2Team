@@ -73,11 +73,11 @@ mlruns/
 outputs/
 runs/
 logs/
-reports/
-*.png
-*.jpg
-*.jpeg
-*.gif
+# reports/
+# *.png
+# *.jpg
+# *.jpeg
+# *.gif
 *.pdf
 *.html
 

@@ -1,0 +1,65 @@
+/* =========================================
+   GLOBAL TYPOGRAPHY (NO HARDCODING)
+   ========================================= */
+html,
+body,
+[class*="css"],
+.stMarkdown,
+.stText {
+    font-size: 18px !important;
+}
+
+/* Markdown Text P/Lists */
+.stMarkdown p,
+.stMarkdown li,
+.stMarkdown div {
+    font-size: 1.1rem !important;
+    line-height: 1.7 !important;
+}
+
+/* Headers */
+h1 {
+    font-size: 2.5rem !important;
+    font-weight: 700 !important;
+    margin-bottom: 0.2rem !important;
+}
+
+h2 {
+    font-size: 2.0rem !important;
+    font-weight: 600 !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+h3 {
+    font-size: 1.6rem !important;
+    font-weight: 600 !important;
+    margin-top: 1rem !important;
+}
+
+/* Metrics */
+[data-testid="stMetricLabel"] {
+    font-size: 1.1rem !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 2.2rem !important;
+}
+
+/* Tables */
+.stTable td,
+.stTable th {
+    font-size: 1.1rem !important;
+}
+
+/* =========================================
+   IMAGE CONSTRAINTS
+   ========================================= */
+/* Constrain images within columns/containers */
+[data-testid="stImage"]>img {
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 500px !important;
+    /* Limit max height */
+    object-fit: contain !important;
+}
